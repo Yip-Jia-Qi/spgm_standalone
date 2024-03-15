@@ -2,7 +2,8 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dual_path import Encoder, Decoder, Dual_Path_Model
+import torchaudio
+from dual_path import Encoder, Decoder, Dual_Path_Model, SBTransformerBlock
 
 def getCheckpoints():
     
@@ -129,8 +130,20 @@ class SPGMWrapper(nn.Module):
         for child_layer in layer.modules():
             if layer != child_layer:
                 self.reset_layer_recursively(child_layer)
+    
+    def inference(self, mix_file, output_dir):
+        '''
+        This is a helper function for inference on a single mixture file
+        '''
+        test_mix, sample_rate = torchaudio.load(mix_file)
+        est_source = self.forward(test_mix, norm_est_source=True)
+        for ns in range(self.num_spks):
+            torchaudio.save(
+                f'{output_dir}/index{ns+1}.wav', est_source[..., ns].detach().cpu(), sample_rate
+            )
+        return "done"
 
-    def forward(self, mix):
+    def forward(self, mix, norm_est_source=False):
         """ Processes the input tensor x and returns an output tensor."""
         mix_w = self.encoder(mix)
         est_mask = self.masknet(mix_w)
@@ -154,18 +167,18 @@ class SPGMWrapper(nn.Module):
         else:
             est_source = est_source[:, :T_origin, :]
 
-        # Normalization step 
-        # This step was not used during training. 
-        # Normalization is added since this wrapper is primarily meant for inference and this normalization step is necessary to make the outputs sound nice.
-        est_source_norm = []
-        for ns in range(self.num_spks):
-            signal = est_source[0, :, ns]
-            signal = signal / signal.abs().max()
-            est_source_norm.append(signal.unsqueeze(1).unsqueeze(0))
-        
-        est_source_norm = torch.cat(est_source_norm, 2)
-
-        return est_source_norm
+        if not norm_est_source:
+            return est_source
+        else:
+            # Normalization step 
+            est_source_norm = []
+            for ns in range(self.num_spks):
+                signal = est_source[0, :, ns]
+                signal = signal / signal.abs().max()
+                est_source_norm.append(signal.unsqueeze(1).unsqueeze(0))
+            
+            est_source_norm = torch.cat(est_source_norm, 2)
+            return est_source_norm
         
 class SPGMBlock(nn.Module):
     """This block performs global pooling and modulation on the output of interblock in a Dual_Computation_Block
@@ -441,7 +454,7 @@ class PoolMax(torch.nn.Module):
         return x  
 
 if __name__ == '__main__':
-    from dual_path import Dual_Computation_Block, SBTransformerBlock
+    from dual_path import Dual_Computation_Block
 
     intra_block = SBTransformerBlock(1, 64, 8)
     inter_block = SPGMBlock(64, 'att', att_dropout = 0.2)
@@ -458,26 +471,15 @@ if __name__ == '__main__':
 
     model = SPGMWrapper()
     inp = torch.rand(1, 160)
-    result = model.forward(inp)
+    result = model(inp)
     print(result.shape)
     print("SPGM model okay if torch.Size([1, 160, 2])")
     
     model.loadPretrained()
     print("pretrained model loaded")
 
-    import torchaudio
-    test_mix, sample_rate = torchaudio.load("./test_samples/item0_mix.wav")
-    print(test_mix.shape)
-    print(sample_rate)
-
-    est_source = model(test_mix)
-    print(est_source.shape)
-    print(est_source[...,0].shape)
-    for ns in range(model.num_spks):
-        torchaudio.save(
-            f'./test_samples/item0_index{ns+1}.wav', est_source[..., ns].detach().cpu(), sample_rate
-        )
-    print("done!")
+    out = model.inference("./test_samples/item0_mix.wav","./test_samples/")
+    print(out)
 
 
 
