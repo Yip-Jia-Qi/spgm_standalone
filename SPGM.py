@@ -475,7 +475,7 @@ if __name__ == '__main__':
     print(est_source[...,0].shape)
     for ns in range(model.num_spks):
         torchaudio.save(
-            f'./test_samples/item0_index{ns+1}.wav', est_source[..., ns], sample_rate
+            f'./test_samples/item0_index{ns+1}.wav', est_source[..., ns].detach().cpu(), sample_rate
         )
     print("done!")
 
