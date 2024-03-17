@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio
-from dual_path import Encoder, Decoder, Dual_Path_Model, SBTransformerBlock
+from .dual_path import Encoder, Decoder, Dual_Path_Model, SBTransformerBlock
 
 def getCheckpoints():
     
