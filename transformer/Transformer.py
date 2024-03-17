@@ -1,3 +1,12 @@
+"""Transformer implementaion in the SpeechBrain style.
+
+Authors
+* Jianyuan Zhong 2020
+* Samuele Cornell 2021
+
+Modifications made by Jia Qi Yip 2024
+"""
+
 import math
 import torch
 import torch.nn as nn

@@ -1,3 +1,10 @@
+'''Library to support Single-Path Global Modulation
+
+https://arxiv.org/abs/2309.12608 
+
+Authors
+* Jia Qi Yip 2024
+'''
 import os
 import torch
 import torch.nn as nn

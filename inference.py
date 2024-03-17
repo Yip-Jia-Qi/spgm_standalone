@@ -1,5 +1,8 @@
-##This is a sample inference script to demonstrate how to run inference on the model for a single .wav file
+'''This is a sample inference script to demonstrate how to run inference on the model for a single .wav file
 
+Authors
+* Jia Qi Yip 2024
+'''
 from SPGM import SPGMWrapper
 
 model = SPGMWrapper()

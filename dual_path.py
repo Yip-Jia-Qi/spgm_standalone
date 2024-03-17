@@ -1,6 +1,17 @@
-'''
-This code is copied from the Speechbrain framework with some modifications
-'''
+"""Library to support dual-path speech separation.
+
+https://github.com/speechbrain/speechbrain
+
+Authors
+ * Cem Subakan 2020
+ * Mirco Ravanelli 2020
+ * Samuele Cornell 2020
+ * Mirko Bronzi 2020
+ * Jianyuan Zhong 2020
+
+Modifications made by Jia Qi Yip 2024
+"""
+
 import copy
 import torch
 import torch.nn as nn
