@@ -16,7 +16,7 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .transformer.Transformer import PositionalEncoding, TransformerEncoder
+from ..utils.Transformer import PositionalEncoding, TransformerEncoder
 
 class Encoder(nn.Module):
     """Convolutional Encoder Layer.

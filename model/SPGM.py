@@ -10,7 +10,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio
-from .dual_path import Encoder, Decoder, Dual_Path_Model, SBTransformerBlock
+from .utils.dual_path import Encoder, Decoder, Dual_Path_Model, SBTransformerBlock
+from .SPGM_configs import spgm_base
 
 def getCheckpoints():
     
@@ -51,74 +52,80 @@ class SPGMWrapper(nn.Module):
 
     def __init__(
         self,
-        encoder_kernel_size=16, #stride is infered to be kernelsize//2
-        encoder_in_nchannels=1,
-        encoder_out_nchannels=256,
-        masknet_chunksize=250,
-        masknet_numlayers=4,
-        masknet_norm="ln",
-        masknet_useextralinearlayer=False,
-        masknet_extraskipconnection=True,
-        masknet_numspks=2,
-        intra_numlayers=8,
-        intra_nhead=8,
-        intra_dffn=1024,
-        intra_dropout=0,
-        intra_use_positional=True,
-        intra_norm_before=True,
-        spgm_block_pool='att',
-        spgm_block_att_h=None, #Only relevant when pool='att'
-        spgm_block_att_dropout=0, #Only relevant when pool='att'
+        config: dict = spgm_base
+        # encoder_kernel_size=16, #stride is infered to be kernelsize//2
+        # encoder_in_nchannels=1,
+        # encoder_out_nchannels=256,
+        # masknet_chunksize=250,
+        # masknet_numlayers=4,
+        # masknet_norm="ln",
+        # masknet_useextralinearlayer=False,
+        # masknet_extraskipconnection=True,
+        # masknet_numspks=2,
+        # intra_numlayers=8,
+        # intra_nhead=8,
+        # intra_dffn=1024,
+        # intra_dropout=0,
+        # intra_use_positional=True,
+        # intra_norm_before=True,
+        # spgm_block_pool='att',
+        # spgm_block_att_h=None, #Only relevant when pool='att'
+        # spgm_block_att_dropout=0, #Only relevant when pool='att'
     ):
 
         super(SPGMWrapper, self).__init__()
+        print(config)
         self.encoder = Encoder(
-            kernel_size=encoder_kernel_size,
-            out_channels=encoder_out_nchannels,
-            in_channels=encoder_in_nchannels,
+            kernel_size=config['encoder_kernel_size'],
+            out_channels=config['encoder_out_nchannels'],
+            in_channels=config['encoder_in_nchannels'],
         )
         intra_model = SBTransformerBlock(
-            num_layers=intra_numlayers,
-            d_model=encoder_out_nchannels,
-            nhead=intra_nhead,
-            d_ffn=intra_dffn,
-            dropout=intra_dropout,
-            use_positional_encoding=intra_use_positional,
-            norm_before=intra_norm_before,
+            num_layers=config['intra_numlayers'],
+            d_model=config['encoder_out_nchannels'],
+            nhead=config['intra_nhead'],
+            d_ffn=config['intra_dffn'],
+            dropout=config['intra_dropout'],
+            use_positional_encoding=config['intra_use_positional'],
+            norm_before=config['intra_norm_before'],
         )
 
         spgm_block = SPGMBlock(
-            n_embd = encoder_out_nchannels,
-            pool = spgm_block_pool,
-            att_h = spgm_block_att_h,#Only relevant when pool='att'
-            att_dropout= spgm_block_att_dropout, #Only relevant when pool='att'
+            n_embd = config['encoder_out_nchannels'],
+            pool = config['spgm_block_pool'],
+            att_h = config['spgm_block_att_h'], #Only relevant when pool='att'
+            att_dropout= config['spgm_block_att_dropout'], #Only relevant when pool='att'
         )
 
         self.masknet = Dual_Path_Model(
-            in_channels=encoder_out_nchannels,
-            out_channels=encoder_out_nchannels,
+            in_channels=config['encoder_out_nchannels'],
+            out_channels=config['encoder_out_nchannels'],
             intra_model=intra_model,
             inter_model=spgm_block,
-            num_layers=masknet_numlayers,
-            norm=masknet_norm,
-            K=masknet_chunksize,
-            num_spks=masknet_numspks,
-            skip_around_intra=masknet_extraskipconnection,
-            linear_layer_after_inter_intra=masknet_useextralinearlayer,
+            num_layers=config['masknet_numlayers'],
+            norm=config['masknet_norm'],
+            K=config['masknet_chunksize'],
+            num_spks=config['masknet_numspks'],
+            skip_around_intra=config['masknet_extraskipconnection'],
+            linear_layer_after_inter_intra=config['masknet_useextralinearlayer'],
         )
         self.decoder = Decoder(
-            in_channels=encoder_out_nchannels,
-            out_channels=encoder_in_nchannels,
-            kernel_size=encoder_kernel_size,
-            stride=encoder_kernel_size // 2,
+            in_channels=config['encoder_out_nchannels'],
+            out_channels=config['encoder_in_nchannels'],
+            kernel_size=config['encoder_kernel_size'],
+            stride=config['encoder_kernel_size'] // 2,
             bias=False,
         )
-        self.num_spks = masknet_numspks
+        self.num_spks = config['masknet_numspks']
 
         # reinitialize the parameters
         for module in [self.encoder, self.masknet, self.decoder]:
             self.reset_layer_recursively(module)
     
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
     def loadPretrained(self):
         if not os.path.isdir('./model_weights/SPGM'):
             print("no checkpoints have been cached, getting them now...")
@@ -143,14 +150,23 @@ class SPGMWrapper(nn.Module):
         This is a helper function for inference on a single mixture file
         '''
         test_mix, sample_rate = torchaudio.load(mix_file)
-        est_source = self.forward(test_mix, norm_est_source=True)
+        est_source = self.forward(test_mix.to(self.device))
+
+        #Normalization to prevent clipping during conversion to .wav file        
+        est_source_norm = []
+        for ns in range(self.num_spks):
+            signal = est_source[0, :, ns]
+            signal = signal / signal.abs().max()
+            est_source_norm.append(signal.unsqueeze(1).unsqueeze(0))
+        est_source = torch.cat(est_source_norm, 2)
+
         for ns in range(self.num_spks):
             torchaudio.save(
                 f'{output_dir}/index{ns+1}.wav', est_source[..., ns].detach().cpu(), sample_rate
             )
         return "done"
 
-    def forward(self, mix, norm_est_source=False):
+    def forward(self, mix):
         """ Processes the input tensor x and returns an output tensor."""
         mix_w = self.encoder(mix)
         est_mask = self.masknet(mix_w)
@@ -174,18 +190,7 @@ class SPGMWrapper(nn.Module):
         else:
             est_source = est_source[:, :T_origin, :]
 
-        if not norm_est_source:
-            return est_source
-        else:
-            # Normalization step 
-            est_source_norm = []
-            for ns in range(self.num_spks):
-                signal = est_source[0, :, ns]
-                signal = signal / signal.abs().max()
-                est_source_norm.append(signal.unsqueeze(1).unsqueeze(0))
-            
-            est_source_norm = torch.cat(est_source_norm, 2)
-            return est_source_norm
+        return est_source
         
 class SPGMBlock(nn.Module):
     """This block performs global pooling and modulation on the output of interblock in a Dual_Computation_Block
