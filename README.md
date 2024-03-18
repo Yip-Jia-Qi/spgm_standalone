@@ -10,6 +10,8 @@ Here are the SI - SNRi results (in dB) on the test set of WSJ0-2 Mix:
 |SpeedPerturb | 22.1 |
 |DynamicMixing | 22.7 |
 
+A demo with instructions on how to run inference on the model is available as a colab notebook [here](https://colab.research.google.com/drive/1zKEaRFNITve7WPsqVNUuaRXiduR7H1Ki?usp=sharing)
+
 Please cite our paper if you have found this model useful
 ```bibtex
 @INPROCEEDINGS{yip2023spgm,
