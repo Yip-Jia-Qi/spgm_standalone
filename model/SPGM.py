@@ -13,6 +13,9 @@ import torchaudio
 from .utils.dual_path import Encoder, Decoder, Dual_Path_Model, SBTransformerBlock
 from .SPGM_configs import spgm_base
 
+#for hf compatibility
+from huggingface_hub import PyTorchModelHubMixin
+
 def getCheckpoints():
     
     from huggingface_hub import hf_hub_download
@@ -25,7 +28,7 @@ def getCheckpoints():
         else:
             print(f'{file}.cpkt already downloaded')
 
-class SPGMWrapper(nn.Module):
+class SPGMWrapper(nn.Module, PyTorchModelHubMixin):
     """The wrapper for the SOGM model which combines the Encoder, Masknet and the Encoder
     https://arxiv.org/abs/2309.12608
 
