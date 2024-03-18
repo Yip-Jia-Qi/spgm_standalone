@@ -1,4 +1,7 @@
 # Single Path Global Modulation (SPGM)
+
+(This is the hf_compatible branch which is meant for uploading the model to huggingface)
+
 This repository implements SPGM as a standalone model based on our [paper](https://arxiv.org/abs/2309.12608) accepted by ICASSP 2024
 
 The config is preset and weights are provided based on the model that was trained on WSJ0-2Mix with Dynamic Mixing.
