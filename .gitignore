@@ -1,4 +1,4 @@
 *.pbs
 *__pycache__
 *.ckpt
-test_samples/index*.wav
+test_samples/index*
