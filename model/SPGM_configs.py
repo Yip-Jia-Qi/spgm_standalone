@@ -1,4 +1,5 @@
 spgm_base = {
+        'config_name': "spgm_base",
         'encoder_kernel_size': 16, #stride is infered to be kernelsize//2
         'encoder_in_nchannels': 1,
         'encoder_out_nchannels': 256,

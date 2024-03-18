@@ -74,7 +74,7 @@ class SPGMWrapper(nn.Module):
     ):
 
         super(SPGMWrapper, self).__init__()
-        print(config)
+        print(f'{config["config_name"]} config loaded')
         self.encoder = Encoder(
             kernel_size=config['encoder_kernel_size'],
             out_channels=config['encoder_out_nchannels'],
@@ -121,6 +121,11 @@ class SPGMWrapper(nn.Module):
         # reinitialize the parameters
         for module in [self.encoder, self.masknet, self.decoder]:
             self.reset_layer_recursively(module)
+
+        # Set device to gpu if available
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.to(device)
+        print(f'model initialised on {self.device}')
     
     @property
     def device(self):
@@ -132,9 +137,9 @@ class SPGMWrapper(nn.Module):
             getCheckpoints()
 
         #load the model checkpoints
-        self.encoder.load_state_dict(torch.load("model_weights/SPGM/encoder.ckpt"))
-        self.decoder.load_state_dict(torch.load("model_weights/SPGM/decoder.ckpt"))
-        self.masknet.load_state_dict(torch.load("model_weights/SPGM/masknet.ckpt"))
+        self.encoder.load_state_dict(torch.load("model_weights/SPGM/encoder.ckpt", map_location=torch.device(self.device)))
+        self.decoder.load_state_dict(torch.load("model_weights/SPGM/decoder.ckpt", map_location=torch.device(self.device)))
+        self.masknet.load_state_dict(torch.load("model_weights/SPGM/masknet.ckpt", map_location=torch.device(self.device)))
 
 
     def reset_layer_recursively(self, layer):
