@@ -29,7 +29,7 @@ def getCheckpoints():
             print(f'{file}.cpkt already downloaded')
 
 class SPGMWrapper(nn.Module, PyTorchModelHubMixin):
-    """The wrapper for the SOGM model which combines the Encoder, Masknet and the Encoder
+    """The wrapper for the SPGM model which combines the Encoder, Masknet and the Encoder
     https://arxiv.org/abs/2309.12608
 
     Arguments
@@ -56,28 +56,12 @@ class SPGMWrapper(nn.Module, PyTorchModelHubMixin):
     def __init__(
         self,
         config: dict = spgm_base
-        # encoder_kernel_size=16, #stride is infered to be kernelsize//2
-        # encoder_in_nchannels=1,
-        # encoder_out_nchannels=256,
-        # masknet_chunksize=250,
-        # masknet_numlayers=4,
-        # masknet_norm="ln",
-        # masknet_useextralinearlayer=False,
-        # masknet_extraskipconnection=True,
-        # masknet_numspks=2,
-        # intra_numlayers=8,
-        # intra_nhead=8,
-        # intra_dffn=1024,
-        # intra_dropout=0,
-        # intra_use_positional=True,
-        # intra_norm_before=True,
-        # spgm_block_pool='att',
-        # spgm_block_att_h=None, #Only relevant when pool='att'
-        # spgm_block_att_dropout=0, #Only relevant when pool='att'
     ):
 
         super(SPGMWrapper, self).__init__()
         print(f'{config["config_name"]} config loaded')
+        self.sample_rate = config["sample_rate"]
+
         self.encoder = Encoder(
             kernel_size=config['encoder_kernel_size'],
             out_channels=config['encoder_out_nchannels'],
@@ -158,7 +142,12 @@ class SPGMWrapper(nn.Module, PyTorchModelHubMixin):
         This is a helper function for inference on a single mixture file
         '''
         test_mix, sample_rate = torchaudio.load(mix_file)
-        est_source = self.forward(test_mix.to(self.device))
+        
+        if sample_rate != self.sample_rate:
+            raise RuntimeError(f'Sampling rate must be {self.sample_rate}')
+        
+        with torch.no_grad():
+            est_source = self.forward(test_mix.to(self.device))
 
         #Normalization to prevent clipping during conversion to .wav file        
         est_source_norm = []

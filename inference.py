@@ -6,12 +6,9 @@ Authors
 import torch
 from model.SPGM import SPGMWrapper
 
-model = SPGMWrapper()
-model.loadPretrained()
+model = SPGMWrapper.from_pretrained("yipjiaqi/spgm-base")
 print("pretrained model loaded")
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model.to(device)
-
+print(model.device)
 out = model.inference("./test_samples/item0_mix.wav","./test_samples/")
 print(out)
