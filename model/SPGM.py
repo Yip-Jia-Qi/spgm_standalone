@@ -14,12 +14,12 @@ from .utils.dual_path import Encoder, Decoder, Dual_Path_Model, SBTransformerBlo
 from .SPGM_configs import spgm_base
 
 #for hf compatibility
-from huggingface_hub import PyTorchModelHubMixin
+from huggingface_hub import PyTorchModelHubMixin, hf_hub_download
 
 def getCheckpoints():
-    
-    from huggingface_hub import hf_hub_download
-
+    '''
+    In most cases calling .from_pretrained is better. but if you want to load from checkpoints then you can use this method
+    '''
     for file in ['encoder','decoder','masknet']:
         if not os.path.exists(f'./model_weights/SPGM/{file}.ckpt'):
             print(f'downloading {file}.cpkt')
@@ -31,18 +31,6 @@ def getCheckpoints():
 class SPGMWrapper(nn.Module, PyTorchModelHubMixin):
     """The wrapper for the SPGM model which combines the Encoder, Masknet and the Encoder
     https://arxiv.org/abs/2309.12608
-
-    Arguments
-    ---------
-
-    encoder_kernel_size: int,
-        The kernel size used in the encoder
-    encoder_in_nchannels: int,
-        The number of channels of the input audio
-    encoder_out_nchannels: int,
-        The number of filters used in the encoder.
-        Also, number of channels that would be inputted to the intra and inter blocks.
-    decoder will follow encoder
 
     Example
     -----
@@ -59,6 +47,8 @@ class SPGMWrapper(nn.Module, PyTorchModelHubMixin):
     ):
 
         super(SPGMWrapper, self).__init__()
+
+        self.config_name = config["config_name"]
         print(f'{config["config_name"]} config loaded')
         self.sample_rate = config["sample_rate"]
 
@@ -119,14 +109,17 @@ class SPGMWrapper(nn.Module, PyTorchModelHubMixin):
         return next(self.parameters()).device
 
     def loadPretrained(self):
-        if not os.path.isdir('./model_weights/SPGM'):
+        '''
+        In most cases calling .from_pretrained is better. but if you want to load from checkpoints then you can use this function
+        '''
+        if not os.path.isdir(f'./model_weights/{self.config_name}'):
             print("no checkpoints have been cached, getting them now...")
             getCheckpoints()
 
         #load the model checkpoints
-        self.encoder.load_state_dict(torch.load("model_weights/SPGM/encoder.ckpt", map_location=torch.device(self.device)))
-        self.decoder.load_state_dict(torch.load("model_weights/SPGM/decoder.ckpt", map_location=torch.device(self.device)))
-        self.masknet.load_state_dict(torch.load("model_weights/SPGM/masknet.ckpt", map_location=torch.device(self.device)))
+        self.encoder.load_state_dict(torch.load(f'model_weights/{self.config_name}/encoder.ckpt', map_location=torch.device(self.device)))
+        self.decoder.load_state_dict(torch.load(f'model_weights/{self.config_name}/decoder.ckpt', map_location=torch.device(self.device)))
+        self.masknet.load_state_dict(torch.load(f'model_weights/{self.config_name}/masknet.ckpt', map_location=torch.device(self.device)))
 
 
     def reset_layer_recursively(self, layer):
@@ -141,6 +134,9 @@ class SPGMWrapper(nn.Module, PyTorchModelHubMixin):
         '''
         This is a helper function for inference on a single mixture file
         '''
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            
         test_mix, sample_rate = torchaudio.load(mix_file)
         
         if sample_rate != self.sample_rate:

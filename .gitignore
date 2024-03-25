@@ -3,3 +3,5 @@
 *.ckpt
 test_samples/index*
 spgm-base
+spgm-opt
+upload_to_hf.py
