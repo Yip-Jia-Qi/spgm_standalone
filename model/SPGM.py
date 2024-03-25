@@ -13,10 +13,13 @@ import torchaudio
 from .utils.dual_path import Encoder, Decoder, Dual_Path_Model, SBTransformerBlock
 from .SPGM_configs import spgm_base
 
-def getCheckpoints():
-    
-    from huggingface_hub import hf_hub_download
+#for hf compatibility
+from huggingface_hub import PyTorchModelHubMixin, hf_hub_download
 
+def getCheckpoints():
+    '''
+    In most cases calling .from_pretrained is better. but if you want to load from checkpoints then you can use this method
+    '''
     for file in ['encoder','decoder','masknet']:
         if not os.path.exists(f'./model_weights/SPGM/{file}.ckpt'):
             print(f'downloading {file}.cpkt')
@@ -25,21 +28,9 @@ def getCheckpoints():
         else:
             print(f'{file}.cpkt already downloaded')
 
-class SPGMWrapper(nn.Module):
-    """The wrapper for the SOGM model which combines the Encoder, Masknet and the Encoder
+class SPGMWrapper(nn.Module, PyTorchModelHubMixin):
+    """The wrapper for the SPGM model which combines the Encoder, Masknet and the Encoder
     https://arxiv.org/abs/2309.12608
-
-    Arguments
-    ---------
-
-    encoder_kernel_size: int,
-        The kernel size used in the encoder
-    encoder_in_nchannels: int,
-        The number of channels of the input audio
-    encoder_out_nchannels: int,
-        The number of filters used in the encoder.
-        Also, number of channels that would be inputted to the intra and inter blocks.
-    decoder will follow encoder
 
     Example
     -----
@@ -53,28 +44,14 @@ class SPGMWrapper(nn.Module):
     def __init__(
         self,
         config: dict = spgm_base
-        # encoder_kernel_size=16, #stride is infered to be kernelsize//2
-        # encoder_in_nchannels=1,
-        # encoder_out_nchannels=256,
-        # masknet_chunksize=250,
-        # masknet_numlayers=4,
-        # masknet_norm="ln",
-        # masknet_useextralinearlayer=False,
-        # masknet_extraskipconnection=True,
-        # masknet_numspks=2,
-        # intra_numlayers=8,
-        # intra_nhead=8,
-        # intra_dffn=1024,
-        # intra_dropout=0,
-        # intra_use_positional=True,
-        # intra_norm_before=True,
-        # spgm_block_pool='att',
-        # spgm_block_att_h=None, #Only relevant when pool='att'
-        # spgm_block_att_dropout=0, #Only relevant when pool='att'
     ):
 
         super(SPGMWrapper, self).__init__()
+
+        self.config_name = config["config_name"]
         print(f'{config["config_name"]} config loaded')
+        self.sample_rate = config["sample_rate"]
+
         self.encoder = Encoder(
             kernel_size=config['encoder_kernel_size'],
             out_channels=config['encoder_out_nchannels'],
@@ -132,14 +109,17 @@ class SPGMWrapper(nn.Module):
         return next(self.parameters()).device
 
     def loadPretrained(self):
-        if not os.path.isdir('./model_weights/SPGM'):
+        '''
+        In most cases calling .from_pretrained is better. but if you want to load from checkpoints then you can use this function
+        '''
+        if not os.path.isdir(f'./model_weights/{self.config_name}'):
             print("no checkpoints have been cached, getting them now...")
             getCheckpoints()
 
         #load the model checkpoints
-        self.encoder.load_state_dict(torch.load("model_weights/SPGM/encoder.ckpt", map_location=torch.device(self.device)))
-        self.decoder.load_state_dict(torch.load("model_weights/SPGM/decoder.ckpt", map_location=torch.device(self.device)))
-        self.masknet.load_state_dict(torch.load("model_weights/SPGM/masknet.ckpt", map_location=torch.device(self.device)))
+        self.encoder.load_state_dict(torch.load(f'model_weights/{self.config_name}/encoder.ckpt', map_location=torch.device(self.device)))
+        self.decoder.load_state_dict(torch.load(f'model_weights/{self.config_name}/decoder.ckpt', map_location=torch.device(self.device)))
+        self.masknet.load_state_dict(torch.load(f'model_weights/{self.config_name}/masknet.ckpt', map_location=torch.device(self.device)))
 
 
     def reset_layer_recursively(self, layer):
@@ -154,8 +134,16 @@ class SPGMWrapper(nn.Module):
         '''
         This is a helper function for inference on a single mixture file
         '''
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            
         test_mix, sample_rate = torchaudio.load(mix_file)
-        est_source = self.forward(test_mix.to(self.device))
+        
+        if sample_rate != self.sample_rate:
+            raise RuntimeError(f'Sampling rate must be {self.sample_rate}')
+        
+        with torch.no_grad():
+            est_source = self.forward(test_mix.to(self.device))
 
         #Normalization to prevent clipping during conversion to .wav file        
         est_source_norm = []

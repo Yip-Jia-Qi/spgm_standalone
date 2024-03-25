@@ -3,15 +3,13 @@
 Authors
 * Jia Qi Yip 2024
 '''
-import torch
 from model.SPGM import SPGMWrapper
 
-model = SPGMWrapper()
-model.loadPretrained()
-print("pretrained model loaded")
+model_configs = ["spgm-base", "spgm-opt"]
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model.to(device)
+for mc in model_configs:
+    model = SPGMWrapper.from_pretrained(f'yipjiaqi/{mc}')
+    print("pretrained model loaded")
 
-out = model.inference("./test_samples/item0_mix.wav","./test_samples/")
-print(out)
+    out = model.inference("./test_samples/item0_mix.wav",f'./test_samples/{mc}')
+    print(out)
